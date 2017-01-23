@@ -1,12 +1,10 @@
 (ns hauskisgeneraattori.core
- (:require-macros [cljs.core.async.macros :refer [go]]) 
-    (:require [reagent.core :as r]
-                [cljs-http.client :as http]
-                [cljs-http.util :refer [user-agent]]
-                [cljs.core.async :refer [<! timeout]]
-                [ajax.core :refer [GET]]
-                [goog.userAgent :as agent]
-                [clojure.string :as str]))
+  (:require-macros [cljs.core.async.macros :refer [go]])
+  (:require [reagent.core :as r]
+            [cljs-http.client :as http]
+            [cljs.core.async :refer [<! timeout]]
+            [ajax.core :refer [GET]]
+            [clojure.string :as str]))
 
 (def state (r/atom {:from ""
                     :to ""
@@ -16,28 +14,38 @@
 (defn log [s]
   (.log js/console (str s)))
 
+(defn to-string [item]
+  (str/join " " (vals item)))
+
+(defn contains-word? [item word]
+  (str/includes?
+   (str/lower-case (to-string item))
+   (str/lower-case word)))
+
 (defn extract-tracks [response]
   (vec
    (map (fn [entry] {:artist (:artist entry)
                      :track (:name entry)})
         (:track (:trackmatches (:results (:body response)))))))
 
-(defn tracklist->str [tracklist]
-  (->> tracklist
-      (map vals)
-      (map #(str/join ": " %))
-      (str/join ", ")))
-
 (defn set-state! [from to]
   (do
     (reset! state (assoc-in @state [:to] to))
     (reset! state (assoc-in @state [:from] from))))
 
-(defn get-tracks! [url query]
+(defn get-tracks! [url from to]
   (go
-    (let [response (<! (http/get (str url "&track=" query) {:with-credentials? false}))]
+    (let [response
+          (<!
+           (http/get (str url "&track=" from "&limit=300") {:with-credentials? false}))]
       (reset! state
-              (assoc-in @state [:tracks] (extract-tracks response))))))
+              {:from from
+               :to to
+               :tracks
+               (->> (extract-tracks response)
+                    (shuffle)
+                    (take 100)
+                    (filter #(contains-word? % from)))}))))
 
 ;; -------------------------
 ;; URL
@@ -55,8 +63,8 @@
        (let [from (.. e -target -elements -from -value)
              to (.. e -target -elements -to -value)]
          (.preventDefault e)
-         (get-tracks! api from)
-         (set-state! from to)))
+         ;(set-state! from to)
+         (get-tracks! api from to)))
      :class "form-horizontal"}
     [:div {:class "form-group"}
      [:div {:class "col-sm-8"}
@@ -77,25 +85,26 @@
 (defn item-to-string [item]
   (str (:artist item) ": " (:track item)))
 
-(defn edit-item [item]
-  (let [to (:to @state)
-        from (:from @state)
-        istring (item-to-string item)]
+(defn edit-item [item to from]
+  (let [istring (item-to-string item)]
     (-> istring
          (str/replace from to)
          (str/replace (str/capitalize from) (str/capitalize to))
+         (str/replace (str/upper-case from) (str/upper-case to))
          (str/replace (str/lower-case from) (str/lower-case to)))))
 
 (defn table [sequence]
-  [:table.table.table-striped.table-bordered 
-   {:cell-spacing "0" :width "80%"}
-   (when-not (empty? (:tracks @state))
-              [:thead>tr 
-               [:th "Hauskiksia"]])
-   [:tbody
-    (doall
-     (for [item (:tracks @state)]
-       [:tr [:td (edit-item item)]]))]])
+  (let [to (:to @state)
+        from (:from @state)]
+    [:table.table.table-striped.table-bordered 
+     {:cell-spacing "0" :width "80%"}
+     (when-not (empty? (:tracks @state))
+       [:thead>tr 
+        [:th "Hauskiksia"]])
+     (doall
+      (into [:tbody]
+            (for [item sequence]
+              [:tr [:td (edit-item item to from)]])))]))
 
 (defn home-page []
   [:div [:h2 "Hauskisgeneraattori"]
