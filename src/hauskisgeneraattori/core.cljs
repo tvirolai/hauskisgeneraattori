@@ -8,7 +8,6 @@
 
 (def state (r/atom {:from ""
                     :to ""
-                    :result ""
                     :tracks []}))
 
 (defn log [s]
@@ -22,22 +21,27 @@
    (str/lower-case (to-string item))
    (str/lower-case word)))
 
+(defn item-to-string [item]
+  (str (:artist item) ": " (:track item)))
+
+(defn edit-item [item to from]
+  (let [istring (item-to-string item)]
+    (-> istring
+         (str/replace from to)
+         (str/replace (str/capitalize from) (str/capitalize to))
+         (str/replace (str/upper-case from) (str/upper-case to))
+         (str/replace (str/lower-case from) (str/lower-case to)))))
+
 (defn extract-tracks [response]
   (vec
    (map (fn [entry] {:artist (:artist entry)
                      :track (:name entry)})
         (:track (:trackmatches (:results (:body response)))))))
 
-(defn set-state! [from to]
-  (do
-    (reset! state (assoc-in @state [:to] to))
-    (reset! state (assoc-in @state [:from] from))))
-
 (defn get-tracks! [url from to]
   (go
     (let [response
-          (<!
-           (http/get (str url "&track=" from "&limit=300") {:with-credentials? false}))]
+          (<! (http/get (str url "&track=" from "&limit=300") {:with-credentials? false}))]
       (reset! state
               {:from from
                :to to
@@ -82,28 +86,18 @@
      [:input {:type "submit"
               :class "btn btn-default"}]]]])
 
-(defn item-to-string [item]
-  (str (:artist item) ": " (:track item)))
-
-(defn edit-item [item to from]
-  (let [istring (item-to-string item)]
-    (-> istring
-         (str/replace from to)
-         (str/replace (str/capitalize from) (str/capitalize to))
-         (str/replace (str/upper-case from) (str/upper-case to))
-         (str/replace (str/lower-case from) (str/lower-case to)))))
-
-(defn table [sequence]
-  (let [to (:to @state)
-        from (:from @state)]
+(defn table [appstate]
+  (let [to (:to @appstate)
+        from (:from @appstate)
+        tracks (:tracks @appstate)]
     [:table.table.table-striped.table-bordered 
      {:cell-spacing "0" :width "80%"}
-     (when-not (empty? (:tracks @state))
+     (when-not (empty? tracks)
        [:thead>tr 
         [:th "Hauskiksia"]])
      (doall
       (into [:tbody]
-            (for [item sequence]
+            (for [item tracks]
               [:tr [:td (edit-item item to from)]])))]))
 
 (defn home-page []
@@ -113,7 +107,7 @@
    ;[:h3 (str "To: " (:to @state))]
    ;[:p (str "Hauskaa:" (map edit-item (:tracks @state)))]
    [:br]
-   [table (:tracks @state)]])
+   [table state]])
 
 ;; -------------------------
 ;; Initialize app
