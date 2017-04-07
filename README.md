@@ -2,7 +2,7 @@
 
 What is a "hauskis"? According to an "official" "definition":
 
-> A "hauskis" translates roughly as "funnism". It is a pun where words that sound of look similar yet are semantically worlds apart are swapped in a song title or a band name.
+> A "hauskis" translates roughly as "funnism". It is a pun where words that sound or look similar yet are semantically worlds apart are swapped in a song title or a band name.
 >
 > Example: AC/DC: "For those about to rock" -> "For those about to rot".
 >
